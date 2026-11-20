@@ -216,9 +216,16 @@ export async function generatePack(
   }
 
   const prompt = buildPackPrompt(input);
+  // No generationConfig (and in particular no responseMimeType) on the
+  // hybrid model: in @firebase/ai 2.16.0 the on-device path silently falls
+  // back to the cloud when a JSON response MIME type is requested (the SDK
+  // logs the incompatibility on-device and routes to cloud without
+  // throwing), so the hybrid call never reaches Nano. The pack prompt
+  // already asks for JSON and parsePack() extracts the object from plain
+  // text, so dropping the MIME type is safe. The cloud retry below keeps
+  // responseMimeType: 'application/json'.
   const hybrid: GenerativeModel = getGenerativeModel(ai, {
     mode: InferenceMode.PREFER_ON_DEVICE,
-    generationConfig: { responseMimeType: 'application/json' },
   });
 
   try {
