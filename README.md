@@ -44,17 +44,23 @@ npm run dev     # local dev server
 npm run build   # type-check + production build
 ```
 
-### 1. Create a Firebase project (needs Toni's Google sign-in — not done yet)
+### 1. Firebase project — DONE 20 Nov 2026 (project `clipcraft-63f49`, Spark/free plan)
 
-1. Go to https://console.firebase.google.com and create a project.
-2. Console → **AI Services → AI Logic → Get started** → choose the
+1. [x] Project created at https://console.firebase.google.com ("ClipCraft",
+   project ID `clipcraft-63f49`, Analytics off).
+2. [ ] Console → **AI Services → AI Logic → Get started** → choose the
    **Gemini Developer API** provider (free to start) and finish the guided
-   workflow. This automatically enforces Firebase App Check for AI Logic.
-3. Register a **Web app** in the project and paste its config into
-   `src/config.ts` (replace the `YOUR_*` placeholders).
+   workflow. **PENDING — until this is done, generation calls fail with an
+   "API not enabled" error and the app falls back to clearly-labelled
+   local demo output (see `src/lib/ai.ts: isApiNotEnabledError`).**
+3. [x] Web app "ClipCraft Web" registered; its config is wired into
+   `src/config.ts` (public web client config — apiKey is a public
+   identifier, never a service-account key).
 4. (Optional, for production) In **Security → App Check**, register a
    reCAPTCHA Enterprise key, add your domains, and paste its site key into
-   `appCheckSiteKey` in `src/config.ts`.
+   `appCheckSiteKey` in `src/config.ts`. **NOT enforced — enforcement
+   decision still pending; the debug-token path activates automatically
+   in dev mode when a site key is set.**
 5. (Local dev) Set `self.FIREBASE_APPCHECK_DEBUG_TOKEN = true` before
    App Check initialises (the scaffold does this automatically in dev mode
    when a site key is set), copy the debug token from the browser console,
@@ -63,7 +69,11 @@ npm run build   # type-check + production build
 
 Without a Firebase config the app runs in **demo mode**: the full UI works
 with a local template generator, and every result is labelled `Demo · no AI
-connected`. No keys are ever committed to this repo.
+connected`. The same demo fallback now also applies when Firebase is
+connected but AI Logic is not enabled yet — the status bar then shows
+`Firebase connected` + `AI Logic: not enabled yet`, and results are
+labelled `Demo` with a note explaining how to enable it. No keys are ever
+committed to this repo beyond the public web client config.
 
 ### 2. On-device model (Gemini Nano)
 
@@ -126,7 +136,10 @@ Key facts verified from those docs:
 - [x] Scaffold: Vite + React + TS, Firebase AI Logic hybrid engine, demo
   mode, polished dark UI (English)
 - [x] `npm run build` passes
-- [ ] Firebase project + real config in `src/config.ts` (needs Toni)
+- [x] Firebase project `clipcraft-63f49` + real config in `src/config.ts`
+      (wired 20 Nov 2026)
+- [ ] Enable AI Logic in the console (Gemini Developer API provider) —
+      until then the app falls back to labelled demo output
 - [ ] Live test on desktop Chrome 139+ with Gemini Nano (verify the
       on-device badge appears)
 - [ ] Deploy (Firebase Hosting or Vercel) + live URL for judges

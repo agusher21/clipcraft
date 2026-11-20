@@ -44,6 +44,37 @@ export interface PackResult {
   source: EngineSource;
   /** Human-readable note, e.g. why the cloud fallback was used. */
   note?: string;
+  /** True when the AI calls failed because AI Logic is not enabled in
+   *  the Firebase project yet — the pack is local demo output. */
+  aiLogicNotEnabled?: boolean;
+}
+
+/** Shown when AI Logic is not enabled in the project yet. */
+export const AI_LOGIC_NOT_ENABLED_NOTE =
+  'Firebase is connected, but AI Logic is not enabled in this project yet — ' +
+  'enable it in the Firebase console (AI Services → AI Logic → Get started, ' +
+  'Gemini Developer API). These results are local demo output.';
+
+export const AI_LOGIC_NOT_ENABLED_ERROR =
+  'Firebase AI Logic is not enabled in this project yet — enable it in the ' +
+  'Firebase console (AI Services → AI Logic), then try again.';
+
+/**
+ * Detect the "API not enabled" failure (Google Cloud returns 403 with
+ * "has not been used … before or it is disabled" when the Firebase AI
+ * Logic / Generative Language API is not enabled in the project).
+ * Only this error triggers the honest demo fallback — any other failure
+ * (network, quota, bad input) still surfaces as a real error.
+ */
+export function isApiNotEnabledError(err: unknown): boolean {
+  const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  if (msg.includes('has not been used') || msg.includes('is disabled') || msg.includes('api not enabled')) {
+    return true;
+  }
+  return (
+    msg.includes('permission_denied') &&
+    (msg.includes('firebaseailogic') || msg.includes('generativelanguage') || msg.includes('ai logic'))
+  );
 }
 
 export interface GenerateInput {
@@ -164,25 +195,39 @@ export async function generatePack(
   } catch (err) {
     // Explicit cloud retry — the badge must reflect where the answer
     // actually came from.
-    const cloud = getGenerativeModel(ai, {
-      model: CLOUD_TEXT_MODEL,
-      generationConfig: { responseMimeType: 'application/json' },
-    });
-    const cloudPrompt = buildPackPrompt({
-      ...input,
-      transcript: truncate(input.transcript, CLOUD_MAX_CHARS),
-    });
-    const result = await cloud.generateContent(cloudPrompt);
-    const pack = parsePack(result.response.text());
-    if (!pack) throw err;
-    return {
-      pack,
-      source: 'cloud',
-      note:
-        'On-device generation failed (' +
-        (err instanceof Error ? err.message : 'unknown error') +
-        '), so Firebase AI Logic answered in the cloud instead.',
-    };
+    try {
+      const cloud = getGenerativeModel(ai, {
+        model: CLOUD_TEXT_MODEL,
+        generationConfig: { responseMimeType: 'application/json' },
+      });
+      const cloudPrompt = buildPackPrompt({
+        ...input,
+        transcript: truncate(input.transcript, CLOUD_MAX_CHARS),
+      });
+      const result = await cloud.generateContent(cloudPrompt);
+      const pack = parsePack(result.response.text());
+      if (!pack) throw err;
+      return {
+        pack,
+        source: 'cloud',
+        note:
+          'On-device generation failed (' +
+          (err instanceof Error ? err.message : 'unknown error') +
+          '), so Firebase AI Logic answered in the cloud instead.',
+      };
+    } catch (cloudErr) {
+      // AI Logic not enabled in the project yet: fall back to clearly
+      // labelled local demo output instead of a raw API error.
+      if (isApiNotEnabledError(cloudErr) || isApiNotEnabledError(err)) {
+        return {
+          pack: generateDemoPack(input.topic, input.transcript, input.niche),
+          source: 'demo',
+          aiLogicNotEnabled: true,
+          note: AI_LOGIC_NOT_ENABLED_NOTE,
+        };
+      }
+      throw cloudErr;
+    }
   }
 }
 
@@ -208,7 +253,15 @@ export async function generateThumbnail(title: string, topic: string): Promise<T
     model: CLOUD_IMAGE_MODEL,
     generationConfig: { responseModalities: [ResponseModality.TEXT, ResponseModality.IMAGE] },
   });
-  const result = await imageModel.generateContent(prompt);
+  let result;
+  try {
+    result = await imageModel.generateContent(prompt);
+  } catch (err) {
+    if (isApiNotEnabledError(err)) {
+      return { imageUrl: null, prompt, error: AI_LOGIC_NOT_ENABLED_ERROR };
+    }
+    throw err;
+  }
   const parts = result.response.inlineDataParts() ?? [];
   const imagePart = parts.find((p) => p.inlineData.mimeType.startsWith('image/'));
   if (!imagePart) {
@@ -249,6 +302,13 @@ export async function analyzeTrends(input: GenerateInput, pack: ClipPack): Promi
     '2. Two search phrases viewers would actually type to find this video.',
     '3. One trend angle or related topic worth a follow-up video.',
   ].join('\n');
-  const result = await cloud.generateContent(prompt);
-  return { text: result.response.text() };
+  try {
+    const result = await cloud.generateContent(prompt);
+    return { text: result.response.text() };
+  } catch (err) {
+    if (isApiNotEnabledError(err)) {
+      return { text: '', error: AI_LOGIC_NOT_ENABLED_ERROR };
+    }
+    throw err;
+  }
 }

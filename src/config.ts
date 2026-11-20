@@ -1,18 +1,22 @@
 /**
  * ClipCraft configuration.
  *
- * Firebase is intentionally NOT configured in this scaffold: creating the
- * Firebase project needs Toni's Google sign-in in the Firebase console.
+ * Firebase project wired 20 Nov 2026: "ClipCraft", project ID
+ * `clipcraft-63f49` (Spark/free plan, Analytics off), web app
+ * "ClipCraft Web" registered. This is the public WEB client config —
+ * it is designed to be embedded in client code (the apiKey is a public
+ * identifier, not a secret). Never add service-account keys here.
  *
- * To connect the real AI:
- *   1. Create a Firebase project at https://console.firebase.google.com
- *   2. Console → AI Services → AI Logic → Get started → choose the
- *      "Gemini Developer API" provider (free to start) and finish the
- *      guided workflow (it enforces Firebase App Check).
- *   3. Register a Web app in the project and paste its config below.
- *   4. (Optional) In App Check, register a reCAPTCHA Enterprise key and
- *      paste its site key into `appCheckSiteKey` below. For local dev,
- *      register a debug token instead — see README.md.
+ * Still pending: enabling AI Logic in the console (Console → AI Services
+ * → AI Logic → Get started → "Gemini Developer API" provider). Until
+ * that is done, generation calls fail with an "API not enabled" error
+ * and the app falls back to clearly-labelled local demo output
+ * (see src/lib/ai.ts: isApiNotEnabledError).
+ *
+ * App Check: NOT enforced — no reCAPTCHA Enterprise site key is set
+ * (enforcement decision still pending). The debug-token path in
+ * src/lib/firebase.ts activates automatically in dev mode when a site
+ * key is added; see README.md.
  */
 
 export interface FirebaseWebConfig {
@@ -25,13 +29,12 @@ export interface FirebaseWebConfig {
 }
 
 export const firebaseConfig: FirebaseWebConfig = {
-  // TODO(developer): replace with your Firebase project's web config.
-  apiKey: 'YOUR_API_KEY',
-  authDomain: 'YOUR_PROJECT_ID.firebaseapp.com',
-  projectId: 'YOUR_PROJECT_ID',
-  storageBucket: 'YOUR_PROJECT_ID.firebasestorage.app',
-  messagingSenderId: 'YOUR_SENDER_ID',
-  appId: 'YOUR_APP_ID',
+  apiKey: 'AIzaSyCacbt24X0AV8CDhngDylXquv7H45QnSuc',
+  authDomain: 'clipcraft-63f49.firebaseapp.com',
+  projectId: 'clipcraft-63f49',
+  storageBucket: 'clipcraft-63f49.firebasestorage.app',
+  messagingSenderId: '78926681484',
+  appId: '1:78926681484:web:b64c7b166509c47e3872a9',
 };
 
 /** reCAPTCHA Enterprise site key for App Check. Leave empty to skip App Check. */

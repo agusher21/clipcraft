@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { isFirebaseConfigured } from './config';
 import {
+  AI_LOGIC_NOT_ENABLED_ERROR,
   analyzeTrends,
   generatePack,
   generateThumbnail,
@@ -85,6 +86,7 @@ export default function App() {
 
   const [onDevice, setOnDevice] = useState<OnDeviceStatus>('unsupported');
   const [online, setOnline] = useState(navigator.onLine);
+  const [aiLogic, setAiLogic] = useState<'unknown' | 'ready' | 'not-enabled'>('unknown');
   const firebaseReady = isFirebaseConfigured();
 
   useEffect(() => {
@@ -116,6 +118,7 @@ export default function App() {
       setPack(result.pack);
       setPackSource(result.source);
       setPackNote(result.note ?? null);
+      setAiLogic(result.aiLogicNotEnabled ? 'not-enabled' : 'ready');
       setThumbnail(null);
       setThumbnailPrompt(null);
       setTrend(null);
@@ -138,6 +141,7 @@ export default function App() {
         setThumbnail(result.imageUrl);
       } else {
         setThumbnailError(result.error ?? 'Thumbnail generation failed.');
+        if (result.error === AI_LOGIC_NOT_ENABLED_ERROR) setAiLogic('not-enabled');
       }
     } catch (e) {
       setThumbnailError(e instanceof Error ? e.message : 'Thumbnail generation failed.');
@@ -159,6 +163,7 @@ export default function App() {
         setTrend(result.text);
       } else {
         setTrendError(result.error ?? 'Trend analysis failed.');
+        if (result.error === AI_LOGIC_NOT_ENABLED_ERROR) setAiLogic('not-enabled');
       }
     } catch (e) {
       setTrendError(e instanceof Error ? e.message : 'Trend analysis failed.');
@@ -192,6 +197,18 @@ export default function App() {
             <span className={`pill ${firebaseReady ? 'pill-ok' : 'pill-warn'}`}>
               {firebaseReady ? '● Firebase connected' : '● Demo mode — Firebase not connected'}
             </span>
+            {firebaseReady && (
+              <span
+                className={`pill ${aiLogic === 'ready' ? 'pill-ok' : aiLogic === 'not-enabled' ? 'pill-warn' : 'pill-dim'}`}
+              >
+                ●{' '}
+                {aiLogic === 'ready'
+                  ? 'AI Logic: connected'
+                  : aiLogic === 'not-enabled'
+                    ? 'AI Logic: not enabled yet'
+                    : 'AI Logic: not checked yet'}
+              </span>
+            )}
             <span className={`pill ${onDevice === 'available' ? 'pill-ok' : 'pill-dim'}`}>
               ● {onDeviceLabel[onDevice]}
             </span>
@@ -204,6 +221,14 @@ export default function App() {
               Demo mode: results below are generated locally so you can try the UI.
               Connect a Firebase project (see README) to use real Gemini Nano on-device
               and cloud Gemini.
+            </p>
+          )}
+          {firebaseReady && aiLogic === 'not-enabled' && (
+            <p className="demo-note">
+              Firebase is connected, but AI Logic isn&apos;t enabled in this project
+              yet — enable it in the Firebase console (AI Services → AI Logic →
+              Get started, Gemini Developer API provider). Until then, results are
+              local demo output, clearly labelled as such.
             </p>
           )}
         </div>
