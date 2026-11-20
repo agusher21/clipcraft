@@ -119,6 +119,15 @@ export interface OnDeviceDiagnosis {
   createOk: boolean;
   promptResult: string | null;
   error: string | null;
+  /** SDK-internal probe: does the hybrid model built by
+   *  getGenerativeModel actually carry a Chrome adapter, what mode is it
+   *  in, and what does its isAvailable() say for a minimal request? */
+  sdkAdapterExists: boolean | null;
+  sdkAdapterMode: string;
+  sdkIsAvailable: boolean | null;
+  sdkAvailabilityRaw: string;
+  sdkCreateOptions: string;
+  sdkError: string | null;
 }
 
 /**
@@ -136,6 +145,12 @@ export async function diagnoseOnDevice(): Promise<OnDeviceDiagnosis> {
     createOk: false,
     promptResult: null,
     error: null,
+    sdkAdapterExists: null,
+    sdkAdapterMode: 'n/a',
+    sdkIsAvailable: null,
+    sdkAvailabilityRaw: 'n/a',
+    sdkCreateOptions: 'n/a',
+    sdkError: null,
   };
   try {
     if (typeof LanguageModel === 'undefined') {
@@ -158,6 +173,55 @@ export async function diagnoseOnDevice(): Promise<OnDeviceDiagnosis> {
     d.promptResult = await session.prompt('Reply with exactly the word: PONG');
   } catch (err) {
     d.error = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+  }
+  // SDK-internal probe: build the hybrid model exactly like generatePack
+  // does and ask its Chrome adapter directly whether a request is
+  // on-device-eligible. (Reads an undocumented SDK property — diagnostics
+  // only, never used for the actual generation path.)
+  try {
+    const ai = getFirebaseAI();
+    if (ai) {
+      const hybrid = getGenerativeModel(ai, {
+        mode: InferenceMode.PREFER_ON_DEVICE,
+        onDeviceParams: {
+          createOptions: {
+            expectedInputs: [{ type: 'text', languages: ['en'] }],
+            expectedOutputs: [{ type: 'text', languages: ['en'] }],
+          },
+        },
+      });
+      const adapter = (
+        hybrid as unknown as {
+          chromeAdapter?: {
+            mode?: string;
+            isAvailable?: (req: unknown) => Promise<boolean>;
+            languageModelProvider?: {
+              availability?: (opts?: unknown) => Promise<string>;
+            };
+            onDeviceParams?: { createOptions?: unknown };
+          };
+        }
+      ).chromeAdapter;
+      d.sdkAdapterExists = !!adapter;
+      d.sdkAdapterMode = adapter?.mode ?? 'n/a';
+      d.sdkCreateOptions = JSON.stringify(
+        adapter?.onDeviceParams?.createOptions ?? null,
+      );
+      if (adapter?.languageModelProvider?.availability) {
+        d.sdkAvailabilityRaw =
+          await adapter.languageModelProvider.availability(
+            adapter.onDeviceParams?.createOptions,
+          );
+      }
+      if (adapter?.isAvailable) {
+        d.sdkIsAvailable = await adapter.isAvailable({
+          contents: [{ role: 'user', parts: [{ text: 'hi' }] }],
+        });
+      }
+    }
+  } catch (err) {
+    d.sdkError =
+      err instanceof Error ? `${err.name}: ${err.message}` : String(err);
   }
   return d;
 }
@@ -231,21 +295,17 @@ export async function generatePack(
 
   const prompt = buildPackPrompt(input);
   // No generationConfig (and in particular no responseMimeType) on the
-  // hybrid model: in @firebase/ai 2.16.0 the on-device path silently falls
-  // back to the cloud when a JSON response MIME type is requested (the SDK
-  // logs the incompatibility on-device and routes to cloud without
-  // throwing), so the hybrid call never reaches Nano. The pack prompt
-  // already asks for JSON and parsePack() extracts the object from plain
-  // text, so dropping the MIME type is safe. The cloud retry below keeps
+  // hybrid model. NOTE (20 Nov, tested): removing responseMimeType did NOT
+  // change the outcome — badges stayed Cloud (re-test 18:55 WIB). Kept
+  // off anyway: the pack prompt already asks for JSON and parsePack()
+  // extracts the object from plain text. The cloud retry below keeps
   // responseMimeType: 'application/json'.
   //
-  // onDeviceParams (text-only expected inputs): the SDK's DEFAULT
-  // createOptions declare expected inputs [text, image], and its
-  // availability check fails unless the model supports image input too —
-  // the app never sends images, so declare text only. Without this the
-  // SDK silently routes every request to the cloud even when Nano itself
-  // is available (verified 20 Nov: bare availability() = 'available',
-  // raw Prompt API prompt = 'PONG', yet all badges Cloud).
+  // onDeviceParams (text-only expected inputs): the app never sends
+  // images, so declare text only. NOTE (20 Nov, tested): this also did
+  // NOT change the outcome — diagnostics show availability is 'available'
+  // even with the SDK's default [text, image] inputs (re-test 19:00 WIB).
+  // Kept anyway: it is the honest declaration for a text-only app.
   const hybrid: GenerativeModel = getGenerativeModel(ai, {
     mode: InferenceMode.PREFER_ON_DEVICE,
     onDeviceParams: {
