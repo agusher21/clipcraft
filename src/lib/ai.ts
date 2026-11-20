@@ -109,6 +109,45 @@ export async function probeOnDevice(): Promise<OnDeviceStatus> {
   }
 }
 
+export interface OnDeviceDiagnosis {
+  userAgent: string;
+  languageModelDefined: boolean;
+  availability: string;
+  createOk: boolean;
+  promptResult: string | null;
+  error: string | null;
+}
+
+/**
+ * Raw Prompt API test — bypasses the Firebase SDK entirely, so it tells
+ * us whether Chrome's on-device Nano itself works in this browser.
+ * Shows the Chrome version (from the user agent), the availability value,
+ * whether a session can be created, and a one-word prompt result.
+ */
+export async function diagnoseOnDevice(): Promise<OnDeviceDiagnosis> {
+  const d: OnDeviceDiagnosis = {
+    userAgent: navigator.userAgent,
+    languageModelDefined: typeof LanguageModel !== 'undefined',
+    availability: 'n/a',
+    createOk: false,
+    promptResult: null,
+    error: null,
+  };
+  try {
+    if (typeof LanguageModel === 'undefined') {
+      d.error = 'LanguageModel is undefined in this browser.';
+      return d;
+    }
+    d.availability = await LanguageModel.availability();
+    const session = await LanguageModel.create();
+    d.createOk = true;
+    d.promptResult = await session.prompt('Reply with exactly the word: PONG');
+  } catch (err) {
+    d.error = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+  }
+  return d;
+}
+
 function buildPackPrompt(input: GenerateInput): string {
   const excerpt = truncate(input.transcript, HYBRID_MAX_CHARS);
   return [

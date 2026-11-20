@@ -268,6 +268,18 @@ a {
   font-size: 14px;
 }
 
+.diagnosis {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 12px 0 0;
+}
+
 .hint {
   color: var(--muted);
   font-size: 14px;

@@ -3,11 +3,13 @@ import { isFirebaseConfigured } from './config';
 import {
   AI_LOGIC_NOT_ENABLED_ERROR,
   analyzeTrends,
+  diagnoseOnDevice,
   generatePack,
   generateThumbnail,
   probeOnDevice,
   type ClipPack,
   type EngineSource,
+  type OnDeviceDiagnosis,
   type OnDeviceStatus,
 } from './lib/ai';
 
@@ -87,6 +89,8 @@ export default function App() {
   const [onDevice, setOnDevice] = useState<OnDeviceStatus>('unsupported');
   const [online, setOnline] = useState(navigator.onLine);
   const [aiLogic, setAiLogic] = useState<'unknown' | 'ready' | 'not-enabled'>('unknown');
+  const [diagnosis, setDiagnosis] = useState<OnDeviceDiagnosis | null>(null);
+  const [diagnosing, setDiagnosing] = useState(false);
   const firebaseReady = isFirebaseConfigured();
 
   useEffect(() => {
@@ -99,6 +103,15 @@ export default function App() {
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
     };
+  }, []);
+
+  const handleDiagnose = useCallback(async () => {
+    setDiagnosing(true);
+    try {
+      setDiagnosis(await diagnoseOnDevice());
+    } finally {
+      setDiagnosing(false);
+    }
   }, []);
 
   const handleGenerate = useCallback(async () => {
@@ -290,6 +303,30 @@ export default function App() {
           </div>
           {error && <p className="error">{error}</p>}
           {packNote && <p className="note">{packNote}</p>}
+        </section>
+
+        <section className="card">
+          <div className="card-head">
+            <h2>On-device diagnostics (dev)</h2>
+          </div>
+          <p className="hint">
+            Tests Chrome&apos;s built-in Prompt API directly, bypassing the
+            Firebase SDK — it shows the Chrome version, whether the Nano model
+            is available, and whether a one-word on-device prompt works.
+          </p>
+          <div className="actions">
+            <button
+              className="btn-ghost"
+              type="button"
+              onClick={handleDiagnose}
+              disabled={diagnosing}
+            >
+              {diagnosing ? 'Running diagnostics…' : '🔍 Run on-device diagnostics'}
+            </button>
+          </div>
+          {diagnosis && (
+            <pre className="diagnosis">{JSON.stringify(diagnosis, null, 2)}</pre>
+          )}
         </section>
 
         {pack && packSource && (
