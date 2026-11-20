@@ -5,8 +5,9 @@
  * - Titles / hooks / hashtags run on the HYBRID model
  *   (`InferenceMode.PREFER_ON_DEVICE`): Gemini Nano on the user's device
  *   when available (Chrome desktop 139+), cloud Gemini otherwise. The
- *   response's `inferenceSource` (`ON_DEVICE` | `IN_CLOUD`) is read from
- *   the SDK and shown as a badge — never assumed.
+ *   response's `inferenceSource` (`on_device` | `in_cloud`, lowercase
+ *   strings in @firebase/ai 2.16.0 — NOT the uppercase enum key names)
+ *   is read from the SDK and shown as a badge — never assumed.
  * - Thumbnail generation runs on the CLOUD-ONLY Nano Banana image model
  *   (`gemini-3.1-flash-image`): image generation is not supported
  *   on-device, so this is always labelled "Cloud".
@@ -274,7 +275,14 @@ function parsePack(text: string): ClipPack | null {
 }
 
 function sourceFromResponse(response: { inferenceSource?: string }): EngineSource {
-  return response.inferenceSource === 'ON_DEVICE' ? 'on-device' : 'cloud';
+  // The SDK's InferenceSource values are LOWERCASE strings: 'on_device' /
+  // 'in_cloud' (@firebase/ai 2.16.0, verified in the bundle 20 Nov). An
+  // earlier version of this function compared against 'ON_DEVICE' and
+  // therefore badged every on-device result as Cloud — that was the whole
+  // mystery: the adapter, availability and generation were fine, only the
+  // badge comparison was wrong.
+  const src = (response.inferenceSource ?? '').toLowerCase();
+  return src === 'on_device' ? 'on-device' : 'cloud';
 }
 
 /**
