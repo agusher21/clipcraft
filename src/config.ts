@@ -38,7 +38,7 @@ export const firebaseConfig: FirebaseWebConfig = {
 };
 
 /** reCAPTCHA Enterprise site key for App Check. Leave empty to skip App Check. */
-export const appCheckSiteKey = '';
+export const appCheckSiteKey = '6Lc_likuAAAAAMUlXUwkOgUGU_Ke9MtFNDuPeLvx';
 
 /**
  * Cloud models (Gemini Developer API backend).
