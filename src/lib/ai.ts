@@ -113,6 +113,9 @@ export interface OnDeviceDiagnosis {
   userAgent: string;
   languageModelDefined: boolean;
   availability: string;
+  /** availability() called with the Firebase SDK's default createOptions
+   *  (text + image expected inputs) — the value the SDK actually checks. */
+  availabilityWithSdkOptions: string;
   createOk: boolean;
   promptResult: string | null;
   error: string | null;
@@ -129,6 +132,7 @@ export async function diagnoseOnDevice(): Promise<OnDeviceDiagnosis> {
     userAgent: navigator.userAgent,
     languageModelDefined: typeof LanguageModel !== 'undefined',
     availability: 'n/a',
+    availabilityWithSdkOptions: 'n/a',
     createOk: false,
     promptResult: null,
     error: null,
@@ -139,6 +143,16 @@ export async function diagnoseOnDevice(): Promise<OnDeviceDiagnosis> {
       return d;
     }
     d.availability = await LanguageModel.availability();
+    // Same options the Firebase SDK passes by default (text + image
+    // expected inputs) — if this differs from the bare call, the SDK's
+    // availability check is what blocks on-device inference.
+    d.availabilityWithSdkOptions = await LanguageModel.availability({
+      expectedInputs: [
+        { type: 'text', languages: ['en'] },
+        { type: 'image' },
+      ],
+      expectedOutputs: [{ type: 'text', languages: ['en'] }],
+    });
     const session = await LanguageModel.create();
     d.createOk = true;
     d.promptResult = await session.prompt('Reply with exactly the word: PONG');
@@ -224,8 +238,22 @@ export async function generatePack(
   // already asks for JSON and parsePack() extracts the object from plain
   // text, so dropping the MIME type is safe. The cloud retry below keeps
   // responseMimeType: 'application/json'.
+  //
+  // onDeviceParams (text-only expected inputs): the SDK's DEFAULT
+  // createOptions declare expected inputs [text, image], and its
+  // availability check fails unless the model supports image input too —
+  // the app never sends images, so declare text only. Without this the
+  // SDK silently routes every request to the cloud even when Nano itself
+  // is available (verified 20 Nov: bare availability() = 'available',
+  // raw Prompt API prompt = 'PONG', yet all badges Cloud).
   const hybrid: GenerativeModel = getGenerativeModel(ai, {
     mode: InferenceMode.PREFER_ON_DEVICE,
+    onDeviceParams: {
+      createOptions: {
+        expectedInputs: [{ type: 'text', languages: ['en'] }],
+        expectedOutputs: [{ type: 'text', languages: ['en'] }],
+      },
+    },
   });
 
   try {

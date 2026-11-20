@@ -9,8 +9,18 @@ declare global {
   interface LanguageModelSession {
     prompt(input: string): Promise<string>;
   }
+  interface LanguageModelExpectedInput {
+    type: string;
+    languages?: string[];
+  }
+  interface LanguageModelAvailabilityOptions {
+    expectedInputs?: LanguageModelExpectedInput[];
+    expectedOutputs?: LanguageModelExpectedInput[];
+  }
   interface LanguageModelAvailability {
-    availability(): Promise<'available' | 'downloadable' | 'downloading' | 'unavailable'>;
+    availability(
+      options?: LanguageModelAvailabilityOptions,
+    ): Promise<'available' | 'downloadable' | 'downloading' | 'unavailable'>;
     create(): Promise<LanguageModelSession>;
   }
   var LanguageModel: LanguageModelAvailability | undefined;
